@@ -385,9 +385,15 @@ function ModuleCard({ mod, areaId, moduleSize, onUpdate }: {
                 <TabsContent value="costs" className="space-y-2">
                   {mod.additionalCosts.map(cost => (
                     <div key={cost.id} className="flex items-center justify-between p-2 rounded-lg bg-muted/50 text-sm">
-                      <div>
+                      <div className="flex items-center gap-2">
                         <span className="font-medium">{cost.description}</span>
-                        <Badge variant="secondary" className="ml-2 text-xs">{UNIT_LABELS[cost.type]}</Badge>
+                        <Badge variant="secondary" className="text-xs">{UNIT_LABELS[cost.type]}</Badge>
+                        {cost.notes && (
+                          <Tooltip>
+                            <TooltipTrigger><MessageSquare className="h-3.5 w-3.5 text-muted-foreground" /></TooltipTrigger>
+                            <TooltipContent className="max-w-[300px]"><p className="text-xs whitespace-pre-wrap">{cost.notes}</p></TooltipContent>
+                          </Tooltip>
+                        )}
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="text-muted-foreground">{fmt(cost.value)}</span>
