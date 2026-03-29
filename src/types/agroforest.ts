@@ -6,18 +6,32 @@ export interface PriceHistory {
 export interface Culture {
   id: string;
   name: string;
+  implantationType: 'mudas' | 'sementes';
   quantity: number;
   unit: 'mudas' | 'sementes' | 'unidades';
   unitPrice: number;
   priceDate: string;
   priceHistory: PriceHistory[];
+  // Seed-specific fields
+  finalPlantsPerModule: number;
+  seedsPerHole?: number;
+  holesPerModule?: number;
+  // Productivity
   estimatedProductivity: number;
+  productivityPer: 'hectare' | 'modulo';
   productionUnit: 'kg' | 'saca' | 'unidade' | 'litro' | 'tonelada';
+  // Sale (independent unit)
   salePrice: number;
+  saleUnit: 'kg' | 'saca' | 'unidade' | 'litro' | 'tonelada';
   salePriceDate: string;
   salePriceHistory: PriceHistory[];
+  // Timing
   monthsToProduction: number;
-  harvestMonths: number[]; // 0-11
+  harvestsPerYear: number;
+  productionDurationYears: number;
+  // Status
+  active: boolean;
+  notes: string;
 }
 
 export interface Input {
@@ -28,6 +42,7 @@ export interface Input {
   priceDate: string;
   priceHistory: PriceHistory[];
   quantity: number;
+  notes: string;
 }
 
 export interface AdditionalCost {
@@ -36,6 +51,7 @@ export interface AdditionalCost {
   description: string;
   value: number;
   date: string;
+  notes: string;
 }
 
 export interface Module {
@@ -94,8 +110,47 @@ export const TASK_TYPE_LABELS: Record<string, string> = {
   manutencao: 'Manutenção',
 };
 
+export const PRODUCTION_UNITS = ['kg', 'saca', 'unidade', 'litro', 'tonelada'] as const;
+export const SALE_UNITS = ['kg', 'saca', 'unidade', 'litro', 'tonelada'] as const;
+
+// Conversion factors to KG as base unit
+const TO_KG: Record<string, number> = {
+  kg: 1,
+  tonelada: 1000,
+  saca: 60, // default, configurable
+  litro: 1, // treat as 1:1 for simplicity
+  unidade: 1,
+};
+
+/** Convert a quantity from one unit to another */
+export function convertUnits(value: number, fromUnit: string, toUnit: string): number {
+  if (fromUnit === toUnit) return value;
+  const inKg = value * (TO_KG[fromUnit] || 1);
+  return inKg / (TO_KG[toUnit] || 1);
+}
+
+/** Get effective productivity per module (converts from ha if needed) */
+export function getEffectiveProductivity(c: Culture, moduleSize: number): number {
+  if (!c.active) return 0;
+  const baseProd = c.estimatedProductivity;
+  if (c.productivityPer === 'hectare') {
+    return (baseProd / 10000) * moduleSize;
+  }
+  return baseProd;
+}
+
+/** Get annual revenue for a single culture in a module */
+export function getCultureAnnualRevenue(c: Culture, moduleSize: number): number {
+  if (!c.active) return 0;
+  const prodPerModule = getEffectiveProductivity(c, moduleSize);
+  // Convert production unit to sale unit
+  const convertedProd = convertUnits(prodPerModule, c.productionUnit, c.saleUnit);
+  return convertedProd * c.harvestsPerYear * c.salePrice;
+}
+
 // Calculation helpers
 export function getModuleCultureCost(c: Culture): number {
+  if (!c.active) return 0;
   return c.quantity * c.unitPrice;
 }
 
@@ -110,12 +165,12 @@ export function getModuleTotalCost(m: Module): number {
   return cultureCost + inputCost + additionalCost;
 }
 
-export function getModuleRevenue(m: Module): number {
-  return m.cultures.reduce((s, c) => s + c.estimatedProductivity * c.salePrice, 0);
+export function getModuleRevenue(m: Module, moduleSize: number = 700): number {
+  return m.cultures.reduce((s, c) => s + getCultureAnnualRevenue(c, moduleSize), 0);
 }
 
-export function getModuleProfit(m: Module): number {
-  return getModuleRevenue(m) - getModuleTotalCost(m);
+export function getModuleProfit(m: Module, moduleSize: number = 700): number {
+  return getModuleRevenue(m, moduleSize) - getModuleTotalCost(m);
 }
 
 export function getAreaTotalCost(area: Area): number {
@@ -123,7 +178,7 @@ export function getAreaTotalCost(area: Area): number {
 }
 
 export function getAreaTotalRevenue(area: Area): number {
-  return area.modules.reduce((s, m) => s + getModuleRevenue(m), 0);
+  return area.modules.reduce((s, m) => s + getModuleRevenue(m, area.moduleSize), 0);
 }
 
 export function getAreaTotalProfit(area: Area): number {
@@ -144,26 +199,44 @@ export function getRevenuePerHectare(area: Area): number {
   return ha > 0 ? getAreaTotalRevenue(area) / ha : 0;
 }
 
-export function getMonthlyRevenue(area: Area): number[] {
-  const monthly = new Array(12).fill(0);
+/** 
+ * Generate monthly revenue timeline for an area over a horizon.
+ * Considers monthsToProduction and productionDurationYears for each culture.
+ * Returns array of length horizonYears*12 with monthly revenue values.
+ */
+export function getMonthlyRevenueTimeline(area: Area, horizonYears: number): number[] {
+  const totalMonths = horizonYears * 12;
+  const monthly = new Array(totalMonths).fill(0);
+
   area.modules.forEach(m => {
     m.cultures.forEach(c => {
-      if (c.harvestMonths.length > 0) {
-        const revenuePerMonth = (c.estimatedProductivity * c.salePrice) / c.harvestMonths.length;
-        c.harvestMonths.forEach(month => {
-          monthly[month] += revenuePerMonth;
-        });
+      if (!c.active) return;
+      const startMonth = c.monthsToProduction;
+      const endMonth = Math.min(startMonth + c.productionDurationYears * 12, totalMonths);
+      if (startMonth >= totalMonths) return;
+
+      const annualRev = getCultureAnnualRevenue(c, area.moduleSize);
+      const monthlyRev = annualRev / 12;
+
+      for (let i = startMonth; i < endMonth; i++) {
+        monthly[i] += monthlyRev;
       }
     });
   });
+
   return monthly;
 }
 
+/** Estimated months until cumulative revenue covers total cost */
 export function getEstimatedReturnMonths(area: Area): number | null {
   const totalCost = getAreaTotalCost(area);
   if (totalCost === 0) return 0;
-  const monthlyRev = getMonthlyRevenue(area);
-  const avgMonthlyRev = monthlyRev.reduce((a, b) => a + b, 0) / 12;
-  if (avgMonthlyRev <= 0) return null;
-  return Math.ceil(totalCost / avgMonthlyRev);
+
+  const timeline = getMonthlyRevenueTimeline(area, 30); // 30-year horizon for calculation
+  let cumulative = 0;
+  for (let i = 0; i < timeline.length; i++) {
+    cumulative += timeline[i];
+    if (cumulative >= totalCost) return i + 1;
+  }
+  return null; // never pays back
 }
