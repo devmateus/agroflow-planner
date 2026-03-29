@@ -9,6 +9,7 @@ import Dashboard from "@/pages/Dashboard";
 import AreasPage from "@/pages/AreasPage";
 import ModulesPage from "@/pages/ModulesPage";
 import TasksPage from "@/pages/TasksPage";
+import FinancesPage from "@/pages/FinancesPage";
 import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
