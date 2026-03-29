@@ -355,9 +355,15 @@ function ModuleCard({ mod, areaId, moduleSize, onUpdate }: {
                 <TabsContent value="inputs" className="space-y-2">
                   {mod.inputs.map(inp => (
                     <div key={inp.id} className="flex items-center justify-between p-2 rounded-lg bg-muted/50 text-sm">
-                      <div>
+                      <div className="flex items-center gap-2">
                         <span className="font-medium">{inp.name}</span>
-                        <span className="text-muted-foreground ml-2">{inp.quantity} {UNIT_LABELS[inp.unitType]}</span>
+                        <span className="text-muted-foreground">{inp.quantity} {UNIT_LABELS[inp.unitType]}</span>
+                        {inp.notes && (
+                          <Tooltip>
+                            <TooltipTrigger><MessageSquare className="h-3.5 w-3.5 text-muted-foreground" /></TooltipTrigger>
+                            <TooltipContent className="max-w-[300px]"><p className="text-xs whitespace-pre-wrap">{inp.notes}</p></TooltipContent>
+                          </Tooltip>
+                        )}
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="text-muted-foreground">{fmt(inp.price * inp.quantity)}</span>
