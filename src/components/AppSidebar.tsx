@@ -1,4 +1,4 @@
-import { Leaf, LayoutDashboard, Map, ListTodo, TreePine } from "lucide-react";
+import { Leaf, LayoutDashboard, Map, ListTodo, TreePine, Wallet } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
 import {
