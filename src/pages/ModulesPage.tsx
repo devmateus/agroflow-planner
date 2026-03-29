@@ -4,7 +4,7 @@ import { useSearchParams } from "react-router-dom";
 import {
   Module, Culture, Input as InputType, AdditionalCost,
   getModuleTotalCost, getModuleRevenue, getModuleProfit,
-  MONTHS, UNIT_LABELS,
+  getAreaHectares, MONTHS, UNIT_LABELS,
 } from "@/types/agroforest";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
