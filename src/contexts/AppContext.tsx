@@ -29,7 +29,7 @@ function loadState(): AppState {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) return JSON.parse(raw);
   } catch {}
-  return { areas: [], tasks: [] };
+  return { areas: [], tasks: [], finances: [] };
 }
 
 function saveState(state: AppState) {
