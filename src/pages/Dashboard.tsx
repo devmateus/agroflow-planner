@@ -1,15 +1,16 @@
+import { useState } from "react";
 import { useApp } from "@/contexts/AppContext";
 import {
   getAreaTotalCost,
   getAreaTotalRevenue,
   getAreaTotalProfit,
   getAreaHectares,
-  getMonthlyRevenue,
+  getMonthlyRevenueTimeline,
   getEstimatedReturnMonths,
-  MONTHS,
 } from "@/types/agroforest";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { TreePine, DollarSign, TrendingUp, Clock, MapPin, AlertTriangle } from "lucide-react";
 import { motion } from "framer-motion";
@@ -19,6 +20,7 @@ const fmt = (v: number) =>
 
 export default function Dashboard() {
   const { areas, tasks } = useApp();
+  const [horizon, setHorizon] = useState(5);
 
   const totalModules = areas.reduce((s, a) => s + a.modules.length, 0);
   const totalHa = areas.reduce((s, a) => s + getAreaHectares(a), 0);
@@ -26,32 +28,55 @@ export default function Dashboard() {
   const totalRevenue = areas.reduce((s, a) => s + getAreaTotalRevenue(a), 0);
   const totalProfit = areas.reduce((s, a) => s + getAreaTotalProfit(a), 0);
 
-  // Aggregate monthly revenue across all areas
-  const monthlyData = MONTHS.map((month, i) => ({
-    month,
-    receita: areas.reduce((s, a) => s + getMonthlyRevenue(a)[i], 0),
-  }));
+  // Aggregate monthly revenue timeline across all areas
+  const timelineData: { label: string; receita: number }[] = [];
+  const totalMonths = horizon * 12;
+  const aggregated = new Array(totalMonths).fill(0);
+  areas.forEach(a => {
+    const timeline = getMonthlyRevenueTimeline(a, horizon);
+    timeline.forEach((v, i) => { aggregated[i] += v; });
+  });
+  for (let i = 0; i < totalMonths; i++) {
+    const year = Math.floor(i / 12) + 1;
+    const month = (i % 12) + 1;
+    timelineData.push({
+      label: i % 12 === 0 ? `Ano ${year}` : `${month}`,
+      receita: aggregated[i],
+    });
+  }
+
+  // Simplify: show yearly aggregates for cleaner chart
+  const yearlyData = Array.from({ length: horizon }, (_, y) => {
+    let total = 0;
+    for (let m = 0; m < 12; m++) {
+      total += aggregated[y * 12 + m] || 0;
+    }
+    return { label: `Ano ${y + 1}`, receita: total };
+  });
 
   const pendingTasks = tasks.filter((t) => t.status === "pendente");
-  const returnMonths = areas.length > 0 ? getEstimatedReturnMonths(areas[0]) : null;
+  
+  // Get best return estimate across all areas
+  const returnEstimates = areas.map(a => getEstimatedReturnMonths(a)).filter(v => v !== null);
+  const bestReturn = returnEstimates.length > 0 ? Math.max(...(returnEstimates as number[])) : null;
 
   const metrics = [
     { label: "Áreas", value: areas.length, icon: MapPin, color: "text-primary" },
     { label: "Módulos", value: totalModules, icon: TreePine, color: "text-primary" },
     { label: "Hectares", value: totalHa.toFixed(2), icon: MapPin, color: "text-primary" },
     { label: "Custo Total", value: fmt(totalCost), icon: DollarSign, color: "text-destructive" },
-    { label: "Receita Estimada", value: fmt(totalRevenue), icon: TrendingUp, color: "text-success" },
-    { label: "Lucro Projetado", value: fmt(totalProfit), icon: TrendingUp, color: totalProfit >= 0 ? "text-success" : "text-destructive" },
+    { label: "Receita Anual", value: fmt(totalRevenue), icon: TrendingUp, color: "text-success" },
+    { label: "Lucro Anual", value: fmt(totalProfit), icon: TrendingUp, color: totalProfit >= 0 ? "text-success" : "text-destructive" },
   ];
 
   return (
     <div className="page-container">
       <div className="flex items-center justify-between">
         <h2 className="section-title">Painel Geral</h2>
-        {returnMonths !== null && (
+        {bestReturn !== null && bestReturn > 0 && (
           <Badge variant="outline" className="gap-1 text-sm border-primary text-primary">
             <Clock className="h-3 w-3" />
-            Retorno em ~{returnMonths} meses
+            Retorno em ~{bestReturn} meses
           </Badge>
         )}
       </div>
@@ -94,13 +119,23 @@ export default function Dashboard() {
       <div className="grid md:grid-cols-2 gap-6">
         <Card>
           <CardHeader>
-            <CardTitle className="text-base font-display">Receita Mensal Estimada</CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base font-display">Receita Projetada por Ano</CardTitle>
+              <Select value={String(horizon)} onValueChange={v => setHorizon(Number(v))}>
+                <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="3">3 anos</SelectItem>
+                  <SelectItem value="5">5 anos</SelectItem>
+                  <SelectItem value="10">10 anos</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={250}>
-              <BarChart data={monthlyData}>
+              <BarChart data={yearlyData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis dataKey="month" tick={{ fontSize: 12 }} />
+                <XAxis dataKey="label" tick={{ fontSize: 12 }} />
                 <YAxis tick={{ fontSize: 12 }} />
                 <Tooltip
                   formatter={(v: number) => fmt(v)}
