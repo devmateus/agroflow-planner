@@ -258,17 +258,48 @@ function ModuleCard({ mod, areaId, moduleSize, onUpdate }: {
 
   const activeCultures = mod.cultures.filter(c => c.active);
 
+  const [editingName, setEditingName] = useState(false);
+  const [moduleName, setModuleName] = useState(mod.name);
+
+  const handleNameSave = () => {
+    if (moduleName.trim()) {
+      onUpdate({ ...mod, name: moduleName.trim() });
+    }
+    setEditingName(false);
+  };
+
   return (
     <Card>
-      <CardHeader className="pb-2 cursor-pointer" onClick={() => setExpanded(!expanded)}>
+      <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-base font-display">{mod.name}</CardTitle>
+          <div className="flex items-center gap-2 flex-1 min-w-0">
+            {editingName ? (
+              <Input
+                value={moduleName}
+                onChange={e => setModuleName(e.target.value)}
+                onBlur={handleNameSave}
+                onKeyDown={e => e.key === 'Enter' && handleNameSave()}
+                className="h-7 text-base font-display font-semibold max-w-[200px]"
+                autoFocus
+              />
+            ) : (
+              <CardTitle
+                className="text-base font-display cursor-pointer hover:text-primary transition-colors"
+                onClick={() => setEditingName(true)}
+                title="Clique para renomear"
+              >
+                {mod.name}
+              </CardTitle>
+            )}
+          </div>
           <div className="flex items-center gap-2">
             <Badge variant="outline" className="text-xs">{fmt(getModuleTotalCost(mod))} custo</Badge>
             <Badge variant="outline" className={`text-xs ${getModuleProfit(mod, moduleSize) >= 0 ? 'border-success/50 text-success' : 'border-destructive/50 text-destructive'}`}>
               {fmt(getModuleProfit(mod, moduleSize))} lucro
             </Badge>
-            {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            <button onClick={() => setExpanded(!expanded)} className="p-1 rounded hover:bg-muted">
+              {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </button>
           </div>
         </div>
       </CardHeader>
