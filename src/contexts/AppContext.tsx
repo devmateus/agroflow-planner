@@ -1,9 +1,10 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { Area, Task, Module, Culture, Input, AdditionalCost } from '@/types/agroforest';
+import { Area, Task, Module, Culture, Input, AdditionalCost, FinanceEntry } from '@/types/agroforest';
 
 interface AppState {
   areas: Area[];
   tasks: Task[];
+  finances: FinanceEntry[];
 }
 
 interface AppContextType extends AppState {
@@ -14,6 +15,9 @@ interface AppContextType extends AppState {
   addTask: (task: Task) => void;
   updateTask: (task: Task) => void;
   deleteTask: (id: string) => void;
+  addFinance: (entry: FinanceEntry) => void;
+  updateFinance: (entry: FinanceEntry) => void;
+  deleteFinance: (id: string) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
