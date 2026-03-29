@@ -17,7 +17,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { Plus, Trash2, Copy, ChevronDown, ChevronUp } from "lucide-react";
+import { Plus, Trash2, Copy, ChevronDown, ChevronUp, MessageSquare } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { motion, AnimatePresence } from "framer-motion";
 
 const fmt = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -92,8 +93,7 @@ function CultureForm({ initial, moduleSize, onSave, onCancel }: {
           </>
         )}
 
-        <div><Label>Preço Unitário (R$)</Label><Input type="number" step="0.01" value={data.unitPrice} onChange={e => set("unitPrice", Number(e.target.value))} /></div>
-        <div><Label>Data Cotação</Label><Input type="date" value={data.priceDate} onChange={e => set("priceDate", e.target.value)} /></div>
+        <div><Label>{data.implantationType === 'sementes' ? 'Preço Unitário da Semente (R$)' : 'Preço Unitário da Muda (R$)'}</Label><Input type="number" step="0.01" value={data.unitPrice} onChange={e => set("unitPrice", Number(e.target.value))} /></div>
 
         {/* Productivity */}
         <div>
@@ -259,17 +259,48 @@ function ModuleCard({ mod, areaId, moduleSize, onUpdate }: {
 
   const activeCultures = mod.cultures.filter(c => c.active);
 
+  const [editingName, setEditingName] = useState(false);
+  const [moduleName, setModuleName] = useState(mod.name);
+
+  const handleNameSave = () => {
+    if (moduleName.trim()) {
+      onUpdate({ ...mod, name: moduleName.trim() });
+    }
+    setEditingName(false);
+  };
+
   return (
     <Card>
-      <CardHeader className="pb-2 cursor-pointer" onClick={() => setExpanded(!expanded)}>
+      <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-base font-display">{mod.name}</CardTitle>
+          <div className="flex items-center gap-2 flex-1 min-w-0">
+            {editingName ? (
+              <Input
+                value={moduleName}
+                onChange={e => setModuleName(e.target.value)}
+                onBlur={handleNameSave}
+                onKeyDown={e => e.key === 'Enter' && handleNameSave()}
+                className="h-7 text-base font-display font-semibold max-w-[200px]"
+                autoFocus
+              />
+            ) : (
+              <CardTitle
+                className="text-base font-display cursor-pointer hover:text-primary transition-colors"
+                onClick={() => setEditingName(true)}
+                title="Clique para renomear"
+              >
+                {mod.name}
+              </CardTitle>
+            )}
+          </div>
           <div className="flex items-center gap-2">
             <Badge variant="outline" className="text-xs">{fmt(getModuleTotalCost(mod))} custo</Badge>
             <Badge variant="outline" className={`text-xs ${getModuleProfit(mod, moduleSize) >= 0 ? 'border-success/50 text-success' : 'border-destructive/50 text-destructive'}`}>
               {fmt(getModuleProfit(mod, moduleSize))} lucro
             </Badge>
-            {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            <button onClick={() => setExpanded(!expanded)} className="p-1 rounded hover:bg-muted">
+              {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </button>
           </div>
         </div>
       </CardHeader>
@@ -287,24 +318,32 @@ function ModuleCard({ mod, areaId, moduleSize, onUpdate }: {
 
                 <TabsContent value="cultures" className="space-y-2">
                   {mod.cultures.map(c => (
-                    <div key={c.id} className={`flex items-center justify-between p-2 rounded-lg bg-muted/50 text-sm ${!c.active ? 'opacity-50' : ''}`}>
-                      <div className="flex items-center gap-2">
-                        <Switch checked={c.active} onCheckedChange={() => toggleCultureActive(c.id)} />
-                        <div>
-                          <span className="font-medium">{c.name}</span>
-                          {!c.active && <Badge variant="secondary" className="ml-2 text-xs">Inativa</Badge>}
-                          <span className="text-muted-foreground ml-2">{c.quantity} {UNIT_LABELS[c.unit]}</span>
+                    <div key={c.id} className={`p-2 rounded-lg bg-muted/50 text-sm ${!c.active ? 'opacity-50' : ''}`}>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Switch checked={c.active} onCheckedChange={() => toggleCultureActive(c.id)} />
+                          <div>
+                            <span className="font-medium">{c.name}</span>
+                            {!c.active && <Badge variant="secondary" className="ml-2 text-xs">Inativa</Badge>}
+                            <span className="text-muted-foreground ml-2">{c.quantity} {UNIT_LABELS[c.unit]}</span>
+                          </div>
                         </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-muted-foreground">{fmt(c.quantity * c.unitPrice)}</span>
-                        <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setDialog({ type: "culture", data: c })}>
-                          <Edit2Icon className="h-3 w-3" />
-                        </Button>
-                        <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive"
-                          onClick={() => updateCultures(mod.cultures.filter(x => x.id !== c.id))}>
-                          <Trash2 className="h-3 w-3" />
-                        </Button>
+                        <div className="flex items-center gap-2">
+                          {c.notes && (
+                            <Tooltip>
+                              <TooltipTrigger><MessageSquare className="h-3.5 w-3.5 text-muted-foreground" /></TooltipTrigger>
+                              <TooltipContent className="max-w-[300px]"><p className="text-xs whitespace-pre-wrap">{c.notes}</p></TooltipContent>
+                            </Tooltip>
+                          )}
+                          <span className="text-muted-foreground">{fmt(c.quantity * c.unitPrice)}</span>
+                          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setDialog({ type: "culture", data: c })}>
+                            <Edit2Icon className="h-3 w-3" />
+                          </Button>
+                          <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive"
+                            onClick={() => updateCultures(mod.cultures.filter(x => x.id !== c.id))}>
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -316,9 +355,15 @@ function ModuleCard({ mod, areaId, moduleSize, onUpdate }: {
                 <TabsContent value="inputs" className="space-y-2">
                   {mod.inputs.map(inp => (
                     <div key={inp.id} className="flex items-center justify-between p-2 rounded-lg bg-muted/50 text-sm">
-                      <div>
+                      <div className="flex items-center gap-2">
                         <span className="font-medium">{inp.name}</span>
-                        <span className="text-muted-foreground ml-2">{inp.quantity} {UNIT_LABELS[inp.unitType]}</span>
+                        <span className="text-muted-foreground">{inp.quantity} {UNIT_LABELS[inp.unitType]}</span>
+                        {inp.notes && (
+                          <Tooltip>
+                            <TooltipTrigger><MessageSquare className="h-3.5 w-3.5 text-muted-foreground" /></TooltipTrigger>
+                            <TooltipContent className="max-w-[300px]"><p className="text-xs whitespace-pre-wrap">{inp.notes}</p></TooltipContent>
+                          </Tooltip>
+                        )}
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="text-muted-foreground">{fmt(inp.price * inp.quantity)}</span>
@@ -340,9 +385,15 @@ function ModuleCard({ mod, areaId, moduleSize, onUpdate }: {
                 <TabsContent value="costs" className="space-y-2">
                   {mod.additionalCosts.map(cost => (
                     <div key={cost.id} className="flex items-center justify-between p-2 rounded-lg bg-muted/50 text-sm">
-                      <div>
+                      <div className="flex items-center gap-2">
                         <span className="font-medium">{cost.description}</span>
-                        <Badge variant="secondary" className="ml-2 text-xs">{UNIT_LABELS[cost.type]}</Badge>
+                        <Badge variant="secondary" className="text-xs">{UNIT_LABELS[cost.type]}</Badge>
+                        {cost.notes && (
+                          <Tooltip>
+                            <TooltipTrigger><MessageSquare className="h-3.5 w-3.5 text-muted-foreground" /></TooltipTrigger>
+                            <TooltipContent className="max-w-[300px]"><p className="text-xs whitespace-pre-wrap">{cost.notes}</p></TooltipContent>
+                          </Tooltip>
+                        )}
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="text-muted-foreground">{fmt(cost.value)}</span>

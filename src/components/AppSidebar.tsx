@@ -1,4 +1,4 @@
-import { Leaf, LayoutDashboard, Map, ListTodo, TreePine } from "lucide-react";
+import { Leaf, LayoutDashboard, Map, ListTodo, TreePine, Wallet } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
 import {
@@ -18,6 +18,7 @@ const items = [
   { title: "Painel", url: "/", icon: LayoutDashboard },
   { title: "Áreas", url: "/areas", icon: Map },
   { title: "Módulos", url: "/modulos", icon: TreePine },
+  { title: "Finanças", url: "/financas", icon: Wallet },
   { title: "Tarefas", url: "/tarefas", icon: ListTodo },
 ];
 

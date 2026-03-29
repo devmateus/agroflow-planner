@@ -1,9 +1,10 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { Area, Task, Module, Culture, Input, AdditionalCost } from '@/types/agroforest';
+import { Area, Task, Module, Culture, Input, AdditionalCost, FinanceEntry } from '@/types/agroforest';
 
 interface AppState {
   areas: Area[];
   tasks: Task[];
+  finances: FinanceEntry[];
 }
 
 interface AppContextType extends AppState {
@@ -14,6 +15,9 @@ interface AppContextType extends AppState {
   addTask: (task: Task) => void;
   updateTask: (task: Task) => void;
   deleteTask: (id: string) => void;
+  addFinance: (entry: FinanceEntry) => void;
+  updateFinance: (entry: FinanceEntry) => void;
+  deleteFinance: (id: string) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -25,7 +29,7 @@ function loadState(): AppState {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) return JSON.parse(raw);
   } catch {}
-  return { areas: [], tasks: [] };
+  return { areas: [], tasks: [], finances: [] };
 }
 
 function saveState(state: AppState) {
@@ -35,10 +39,11 @@ function saveState(state: AppState) {
 export function AppProvider({ children }: { children: ReactNode }) {
   const [areas, setAreas] = useState<Area[]>(() => loadState().areas);
   const [tasks, setTasks] = useState<Task[]>(() => loadState().tasks);
+  const [finances, setFinances] = useState<FinanceEntry[]>(() => loadState().finances || []);
 
   useEffect(() => {
-    saveState({ areas, tasks });
-  }, [areas, tasks]);
+    saveState({ areas, tasks, finances });
+  }, [areas, tasks, finances]);
 
   const addArea = (area: Area) => setAreas(prev => [...prev, area]);
   const updateArea = (area: Area) => setAreas(prev => prev.map(a => a.id === area.id ? area : a));
@@ -54,7 +59,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
         id: crypto.randomUUID(),
         name: `${source.name} (cópia)`,
       };
-      return { ...area, modules: [...area.modules, newModule] };
+      return {
+        ...area,
+        modules: [...area.modules, newModule],
+        moduleCount: area.moduleCount + 1,
+      };
     }));
   };
 
@@ -62,11 +71,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const updateTask = (task: Task) => setTasks(prev => prev.map(t => t.id === task.id ? task : t));
   const deleteTask = (id: string) => setTasks(prev => prev.filter(t => t.id !== id));
 
+  const addFinance = (entry: FinanceEntry) => setFinances(prev => [...prev, entry]);
+  const updateFinance = (entry: FinanceEntry) => setFinances(prev => prev.map(f => f.id === entry.id ? entry : f));
+  const deleteFinance = (id: string) => setFinances(prev => prev.filter(f => f.id !== id));
+
   return (
     <AppContext.Provider value={{
-      areas, tasks,
+      areas, tasks, finances,
       addArea, updateArea, deleteArea, duplicateModule,
       addTask, updateTask, deleteTask,
+      addFinance, updateFinance, deleteFinance,
     }}>
       {children}
     </AppContext.Provider>

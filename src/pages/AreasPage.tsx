@@ -7,7 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Plus, Trash2, Edit2 } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Plus, Trash2, Edit2, MessageSquare } from "lucide-react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 
@@ -38,7 +39,6 @@ function AreaForm({ initial, onSave, onCancel }: {
       })),
       notes,
     };
-    // Adjust modules count if changed
     if (!initial && area.modules.length < moduleCount) {
       for (let i = area.modules.length; i < moduleCount; i++) {
         area.modules.push({
@@ -142,6 +142,16 @@ export default function AreasPage() {
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-base font-display">{area.name}</CardTitle>
                     <div className="flex gap-1" onClick={e => e.stopPropagation()}>
+                      {area.notes && (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button size="icon" variant="ghost" className="h-8 w-8">
+                              <MessageSquare className="h-3.5 w-3.5 text-muted-foreground" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent className="max-w-[300px]"><p className="text-xs whitespace-pre-wrap">{area.notes}</p></TooltipContent>
+                        </Tooltip>
+                      )}
                       <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => { setEditingArea(area); setDialogOpen(true); }}>
                         <Edit2 className="h-3.5 w-3.5" />
                       </Button>

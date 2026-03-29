@@ -62,6 +62,14 @@ export interface Module {
   additionalCosts: AdditionalCost[];
 }
 
+export interface FinanceEntry {
+  id: string;
+  date: string;
+  description: string;
+  type: 'receita' | 'despesa';
+  value: number;
+}
+
 export interface Area {
   id: string;
   name: string;
