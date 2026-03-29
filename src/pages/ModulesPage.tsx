@@ -318,24 +318,32 @@ function ModuleCard({ mod, areaId, moduleSize, onUpdate }: {
 
                 <TabsContent value="cultures" className="space-y-2">
                   {mod.cultures.map(c => (
-                    <div key={c.id} className={`flex items-center justify-between p-2 rounded-lg bg-muted/50 text-sm ${!c.active ? 'opacity-50' : ''}`}>
-                      <div className="flex items-center gap-2">
-                        <Switch checked={c.active} onCheckedChange={() => toggleCultureActive(c.id)} />
-                        <div>
-                          <span className="font-medium">{c.name}</span>
-                          {!c.active && <Badge variant="secondary" className="ml-2 text-xs">Inativa</Badge>}
-                          <span className="text-muted-foreground ml-2">{c.quantity} {UNIT_LABELS[c.unit]}</span>
+                    <div key={c.id} className={`p-2 rounded-lg bg-muted/50 text-sm ${!c.active ? 'opacity-50' : ''}`}>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Switch checked={c.active} onCheckedChange={() => toggleCultureActive(c.id)} />
+                          <div>
+                            <span className="font-medium">{c.name}</span>
+                            {!c.active && <Badge variant="secondary" className="ml-2 text-xs">Inativa</Badge>}
+                            <span className="text-muted-foreground ml-2">{c.quantity} {UNIT_LABELS[c.unit]}</span>
+                          </div>
                         </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-muted-foreground">{fmt(c.quantity * c.unitPrice)}</span>
-                        <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setDialog({ type: "culture", data: c })}>
-                          <Edit2Icon className="h-3 w-3" />
-                        </Button>
-                        <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive"
-                          onClick={() => updateCultures(mod.cultures.filter(x => x.id !== c.id))}>
-                          <Trash2 className="h-3 w-3" />
-                        </Button>
+                        <div className="flex items-center gap-2">
+                          {c.notes && (
+                            <Tooltip>
+                              <TooltipTrigger><MessageSquare className="h-3.5 w-3.5 text-muted-foreground" /></TooltipTrigger>
+                              <TooltipContent className="max-w-[300px]"><p className="text-xs whitespace-pre-wrap">{c.notes}</p></TooltipContent>
+                            </Tooltip>
+                          )}
+                          <span className="text-muted-foreground">{fmt(c.quantity * c.unitPrice)}</span>
+                          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setDialog({ type: "culture", data: c })}>
+                            <Edit2Icon className="h-3 w-3" />
+                          </Button>
+                          <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive"
+                            onClick={() => updateCultures(mod.cultures.filter(x => x.id !== c.id))}>
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                        </div>
                       </div>
                     </div>
                   ))}
