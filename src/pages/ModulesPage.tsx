@@ -92,8 +92,7 @@ function CultureForm({ initial, moduleSize, onSave, onCancel }: {
           </>
         )}
 
-        <div><Label>Preço Unitário (R$)</Label><Input type="number" step="0.01" value={data.unitPrice} onChange={e => set("unitPrice", Number(e.target.value))} /></div>
-        <div><Label>Data Cotação</Label><Input type="date" value={data.priceDate} onChange={e => set("priceDate", e.target.value)} /></div>
+        <div><Label>{data.implantationType === 'sementes' ? 'Preço Unitário da Semente (R$)' : 'Preço Unitário da Muda (R$)'}</Label><Input type="number" step="0.01" value={data.unitPrice} onChange={e => set("unitPrice", Number(e.target.value))} /></div>
 
         {/* Productivity */}
         <div>
