@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useApp } from "@/contexts/AppContext";
 import { FinanceEntry } from "@/types/agroforest";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Trash2, TrendingUp, TrendingDown, DollarSign } from "lucide-react";
+import { Plus, Trash2, TrendingUp, TrendingDown, DollarSign, Search } from "lucide-react";
 import { motion } from "framer-motion";
 
 const fmt = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -52,19 +52,66 @@ function FinanceForm({ initial, onSave, onCancel }: {
 export default function FinancesPage() {
   const { finances, addFinance, updateFinance, deleteFinance } = useApp();
   const [dialog, setDialog] = useState<{ data?: FinanceEntry } | null>(null);
+  const [search, setSearch] = useState("");
+  const [periodFilter, setPeriodFilter] = useState<string>("all");
 
-  const sorted = [...finances].sort((a, b) => b.date.localeCompare(a.date));
-  const totalReceitas = finances.filter(f => f.type === "receita").reduce((s, f) => s + f.value, 0);
-  const totalDespesas = finances.filter(f => f.type === "despesa").reduce((s, f) => s + f.value, 0);
+  const filtered = useMemo(() => {
+    let list = [...finances];
+
+    // Text search
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      list = list.filter(f => f.description.toLowerCase().includes(q));
+    }
+
+    // Period filter
+    if (periodFilter !== "all") {
+      const now = new Date();
+      const currentYear = now.getFullYear();
+      const currentMonth = now.getMonth() + 1;
+      list = list.filter(f => {
+        const [y, m] = f.date.split("-").map(Number);
+        if (periodFilter === "month") return y === currentYear && m === currentMonth;
+        if (periodFilter === "year") return y === currentYear;
+        return true;
+      });
+    }
+
+    return list.sort((a, b) => b.date.localeCompare(a.date));
+  }, [finances, search, periodFilter]);
+
+  const totalReceitas = filtered.filter(f => f.type === "receita").reduce((s, f) => s + f.value, 0);
+  const totalDespesas = filtered.filter(f => f.type === "despesa").reduce((s, f) => s + f.value, 0);
   const saldo = totalReceitas - totalDespesas;
 
   return (
     <div className="page-container">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <h2 className="section-title">Finanças Gerais</h2>
         <Button className="gap-2" onClick={() => setDialog({})}>
           <Plus className="h-4 w-4" /> Novo Lançamento
         </Button>
+      </div>
+
+      {/* Filters */}
+      <div className="flex gap-2 flex-wrap">
+        <div className="relative flex-1 min-w-[200px]">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            className="pl-9"
+            placeholder="Buscar por descrição..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+          />
+        </div>
+        <Select value={periodFilter} onValueChange={setPeriodFilter}>
+          <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todo período</SelectItem>
+            <SelectItem value="month">Mês atual</SelectItem>
+            <SelectItem value="year">Ano atual</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       {/* Summary cards */}
@@ -99,7 +146,7 @@ export default function FinancesPage() {
       </div>
 
       {/* Entries list */}
-      {sorted.length === 0 ? (
+      {filtered.length === 0 ? (
         <Card className="border-dashed">
           <CardContent className="p-12 text-center text-muted-foreground">
             <p className="text-lg mb-2">Nenhum lançamento</p>
@@ -109,11 +156,11 @@ export default function FinancesPage() {
       ) : (
         <Card>
           <CardHeader>
-            <CardTitle className="text-base font-display">Lançamentos</CardTitle>
+            <CardTitle className="text-base font-display">Lançamentos ({filtered.length})</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
-              {sorted.map(entry => (
+              {filtered.map(entry => (
                 <motion.div key={entry.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }}
                   className="flex items-center justify-between p-3 rounded-lg bg-muted/50 text-sm"
                 >

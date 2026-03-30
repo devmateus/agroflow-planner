@@ -6,9 +6,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { Plus, Trash2, Edit2, MessageSquare } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
+import { Plus, Trash2, Edit2, MessageSquare, Eye, EyeOff } from "lucide-react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 
@@ -28,11 +31,13 @@ function AreaForm({ initial, onSave, onCancel }: {
     const area: Area = {
       id: initial?.id || crypto.randomUUID(),
       name,
+      active: initial?.active ?? true,
       moduleCount,
       moduleSize,
       modules: initial?.modules || Array.from({ length: moduleCount }, (_, i) => ({
         id: crypto.randomUUID(),
         name: `Módulo ${i + 1}`,
+        active: true,
         cultures: [],
         inputs: [],
         additionalCosts: [],
@@ -44,6 +49,7 @@ function AreaForm({ initial, onSave, onCancel }: {
         area.modules.push({
           id: crypto.randomUUID(),
           name: `Módulo ${i + 1}`,
+          active: true,
           cultures: [],
           inputs: [],
           additionalCosts: [],
@@ -88,6 +94,7 @@ export default function AreasPage() {
   const { areas, addArea, updateArea, deleteArea } = useApp();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingArea, setEditingArea] = useState<Area | undefined>();
+  const [filter, setFilter] = useState<'all' | 'active' | 'inactive'>('all');
   const navigate = useNavigate();
 
   const handleSave = (area: Area) => {
@@ -100,48 +107,79 @@ export default function AreasPage() {
     setEditingArea(undefined);
   };
 
+  const toggleAreaActive = (area: Area) => {
+    updateArea({ ...area, active: !area.active });
+  };
+
+  const filtered = areas.filter(a => {
+    if (filter === 'active') return a.active;
+    if (filter === 'inactive') return !a.active;
+    return true;
+  });
+
   return (
     <div className="page-container">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <h2 className="section-title">Áreas</h2>
-        <Dialog open={dialogOpen} onOpenChange={(o) => { setDialogOpen(o); if (!o) setEditingArea(undefined); }}>
-          <DialogTrigger asChild>
-            <Button className="gap-2"><Plus className="h-4 w-4" /> Nova Área</Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle className="font-display">{editingArea ? "Editar Área" : "Nova Área"}</DialogTitle>
-            </DialogHeader>
-            <AreaForm
-              initial={editingArea}
-              onSave={handleSave}
-              onCancel={() => { setDialogOpen(false); setEditingArea(undefined); }}
-            />
-          </DialogContent>
-        </Dialog>
+        <div className="flex gap-2">
+          <Select value={filter} onValueChange={v => setFilter(v as any)}>
+            <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas</SelectItem>
+              <SelectItem value="active">Ativas</SelectItem>
+              <SelectItem value="inactive">Inativas</SelectItem>
+            </SelectContent>
+          </Select>
+          <Dialog open={dialogOpen} onOpenChange={(o) => { setDialogOpen(o); if (!o) setEditingArea(undefined); }}>
+            <DialogTrigger asChild>
+              <Button className="gap-2"><Plus className="h-4 w-4" /> Nova Área</Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle className="font-display">{editingArea ? "Editar Área" : "Nova Área"}</DialogTitle>
+              </DialogHeader>
+              <AreaForm
+                initial={editingArea}
+                onSave={handleSave}
+                onCancel={() => { setDialogOpen(false); setEditingArea(undefined); }}
+              />
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
-      {areas.length === 0 ? (
+      {filtered.length === 0 ? (
         <Card className="border-dashed">
           <CardContent className="p-12 text-center text-muted-foreground">
-            <p className="text-lg mb-2">Nenhuma área cadastrada</p>
+            <p className="text-lg mb-2">Nenhuma área encontrada</p>
             <p className="text-sm">Clique em "Nova Área" para começar o planejamento.</p>
           </CardContent>
         </Card>
       ) : (
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {areas.map((area, i) => (
+          {filtered.map((area, i) => (
             <motion.div
               key={area.id}
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.05 }}
             >
-              <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate(`/modulos?area=${area.id}`)}>
+              <Card className={`cursor-pointer hover:shadow-md transition-shadow ${!area.active ? 'opacity-50' : ''}`} onClick={() => navigate(`/modulos?area=${area.id}`)}>
                 <CardHeader className="pb-2">
                   <div className="flex items-center justify-between">
-                    <CardTitle className="text-base font-display">{area.name}</CardTitle>
+                    <div className="flex items-center gap-2">
+                      <CardTitle className="text-base font-display">{area.name}</CardTitle>
+                      {!area.active && <Badge variant="secondary" className="text-xs">Inativa</Badge>}
+                    </div>
                     <div className="flex gap-1" onClick={e => e.stopPropagation()}>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => toggleAreaActive(area)}>
+                            {area.active ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>{area.active ? "Desativar" : "Ativar"}</TooltipContent>
+                      </Tooltip>
                       {area.notes && (
                         <Tooltip>
                           <TooltipTrigger asChild>
