@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { Area, Task, Module, Culture, Input, AdditionalCost, FinanceEntry } from '@/types/agroforest';
+import { Area, Task, Module, FinanceEntry, migrateArea, migrateTask } from '@/types/agroforest';
 
 interface AppState {
   areas: Area[];
@@ -12,6 +12,7 @@ interface AppContextType extends AppState {
   updateArea: (area: Area) => void;
   deleteArea: (id: string) => void;
   duplicateModule: (areaId: string, moduleId: string) => void;
+  copyCultures: (sourceAreaId: string, sourceModuleId: string, targetAreaId: string, targetModuleId: string) => void;
   addTask: (task: Task) => void;
   updateTask: (task: Task) => void;
   deleteTask: (id: string) => void;
@@ -27,7 +28,14 @@ const STORAGE_KEY = 'agrofloresta-planner-data';
 function loadState(): AppState {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return JSON.parse(raw);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      return {
+        areas: (parsed.areas || []).map(migrateArea),
+        tasks: (parsed.tasks || []).map(migrateTask),
+        finances: parsed.finances || [],
+      };
+    }
   } catch {}
   return { areas: [], tasks: [], finances: [] };
 }
@@ -67,6 +75,27 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }));
   };
 
+  const copyCultures = (sourceAreaId: string, sourceModuleId: string, targetAreaId: string, targetModuleId: string) => {
+    setAreas(prev => {
+      const sourceArea = prev.find(a => a.id === sourceAreaId);
+      const sourceModule = sourceArea?.modules.find(m => m.id === sourceModuleId);
+      if (!sourceModule) return prev;
+      const copiedCultures = JSON.parse(JSON.stringify(sourceModule.cultures)).map((c: any) => ({
+        ...c, id: crypto.randomUUID(),
+      }));
+      return prev.map(area => {
+        if (area.id !== targetAreaId) return area;
+        return {
+          ...area,
+          modules: area.modules.map(m => {
+            if (m.id !== targetModuleId) return m;
+            return { ...m, cultures: [...m.cultures, ...copiedCultures] };
+          }),
+        };
+      });
+    });
+  };
+
   const addTask = (task: Task) => setTasks(prev => [...prev, task]);
   const updateTask = (task: Task) => setTasks(prev => prev.map(t => t.id === task.id ? task : t));
   const deleteTask = (id: string) => setTasks(prev => prev.filter(t => t.id !== id));
@@ -78,7 +107,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   return (
     <AppContext.Provider value={{
       areas, tasks, finances,
-      addArea, updateArea, deleteArea, duplicateModule,
+      addArea, updateArea, deleteArea, duplicateModule, copyCultures,
       addTask, updateTask, deleteTask,
       addFinance, updateFinance, deleteFinance,
     }}>
