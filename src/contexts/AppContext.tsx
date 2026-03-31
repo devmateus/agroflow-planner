@@ -1,10 +1,11 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { Area, Task, Module, FinanceEntry, migrateArea, migrateTask } from '@/types/agroforest';
+import { Area, Task, Module, FinanceEntry, Harvest, migrateArea, migrateTask, migrateFinance, migrateHarvest } from '@/types/agroforest';
 
 interface AppState {
   areas: Area[];
   tasks: Task[];
   finances: FinanceEntry[];
+  harvests: Harvest[];
 }
 
 interface AppContextType extends AppState {
@@ -19,6 +20,9 @@ interface AppContextType extends AppState {
   addFinance: (entry: FinanceEntry) => void;
   updateFinance: (entry: FinanceEntry) => void;
   deleteFinance: (id: string) => void;
+  addHarvest: (harvest: Harvest) => void;
+  updateHarvest: (harvest: Harvest) => void;
+  deleteHarvest: (id: string) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -33,11 +37,12 @@ function loadState(): AppState {
       return {
         areas: (parsed.areas || []).map(migrateArea),
         tasks: (parsed.tasks || []).map(migrateTask),
-        finances: parsed.finances || [],
+        finances: (parsed.finances || []).map(migrateFinance),
+        harvests: (parsed.harvests || []).map(migrateHarvest),
       };
     }
   } catch {}
-  return { areas: [], tasks: [], finances: [] };
+  return { areas: [], tasks: [], finances: [], harvests: [] };
 }
 
 function saveState(state: AppState) {
@@ -47,11 +52,12 @@ function saveState(state: AppState) {
 export function AppProvider({ children }: { children: ReactNode }) {
   const [areas, setAreas] = useState<Area[]>(() => loadState().areas);
   const [tasks, setTasks] = useState<Task[]>(() => loadState().tasks);
-  const [finances, setFinances] = useState<FinanceEntry[]>(() => loadState().finances || []);
+  const [finances, setFinances] = useState<FinanceEntry[]>(() => loadState().finances);
+  const [harvests, setHarvests] = useState<Harvest[]>(() => loadState().harvests);
 
   useEffect(() => {
-    saveState({ areas, tasks, finances });
-  }, [areas, tasks, finances]);
+    saveState({ areas, tasks, finances, harvests });
+  }, [areas, tasks, finances, harvests]);
 
   const addArea = (area: Area) => setAreas(prev => [...prev, area]);
   const updateArea = (area: Area) => setAreas(prev => prev.map(a => a.id === area.id ? area : a));
@@ -104,12 +110,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const updateFinance = (entry: FinanceEntry) => setFinances(prev => prev.map(f => f.id === entry.id ? entry : f));
   const deleteFinance = (id: string) => setFinances(prev => prev.filter(f => f.id !== id));
 
+  const addHarvest = (harvest: Harvest) => setHarvests(prev => [...prev, harvest]);
+  const updateHarvest = (harvest: Harvest) => setHarvests(prev => prev.map(h => h.id === harvest.id ? harvest : h));
+  const deleteHarvest = (id: string) => setHarvests(prev => prev.filter(h => h.id !== id));
+
   return (
     <AppContext.Provider value={{
-      areas, tasks, finances,
+      areas, tasks, finances, harvests,
       addArea, updateArea, deleteArea, duplicateModule, copyCultures,
       addTask, updateTask, deleteTask,
       addFinance, updateFinance, deleteFinance,
+      addHarvest, updateHarvest, deleteHarvest,
     }}>
       {children}
     </AppContext.Provider>

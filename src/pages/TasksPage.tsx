@@ -146,21 +146,38 @@ export default function TasksPage() {
   const [dialog, setDialog] = useState<{ data?: Task } | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [priorityFilter, setPriorityFilter] = useState<string>("all");
+  const [areaFilter, setAreaFilter] = useState<string>("all");
+  const [moduleFilter, setModuleFilter] = useState<string>("all");
+  const [cultureFilter, setCultureFilter] = useState<string>("all");
 
   const toggle = (t: Task) => updateTask({ ...t, status: t.status === "concluido" ? "pendente" : "concluido" });
+
+  const filterArea = areas.find(a => a.id === areaFilter);
+  const filterModule = filterArea?.modules.find(m => m.id === moduleFilter);
 
   const filtered = useMemo(() => {
     return tasks
       .filter(t => statusFilter === "all" || t.status === statusFilter)
       .filter(t => priorityFilter === "all" || t.priority === priorityFilter)
+      .filter(t => {
+        if (areaFilter === "all") return true;
+        return t.areaId === areaFilter;
+      })
+      .filter(t => {
+        if (moduleFilter === "all") return true;
+        return t.moduleId === moduleFilter;
+      })
+      .filter(t => {
+        if (cultureFilter === "all") return true;
+        return t.cultureId === cultureFilter;
+      })
       .sort((a, b) => {
-        // Sort: atrasado first, then pendente, em_andamento, concluido
         const order: Record<string, number> = { atrasado: 0, pendente: 1, em_andamento: 2, concluido: 3 };
         const diff = (order[a.status] ?? 1) - (order[b.status] ?? 1);
         if (diff !== 0) return diff;
         return a.date.localeCompare(b.date);
       });
-  }, [tasks, statusFilter, priorityFilter]);
+  }, [tasks, statusFilter, priorityFilter, areaFilter, moduleFilter, cultureFilter]);
 
   const getLinkedLabel = (t: Task) => {
     const parts: string[] = [];
@@ -181,25 +198,54 @@ export default function TasksPage() {
     <div className="page-container">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <h2 className="section-title">Tarefas</h2>
-        <div className="flex gap-2 flex-wrap">
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
+        <Button className="gap-2" onClick={() => setDialog({})}>
+          <Plus className="h-4 w-4" /> Nova Tarefa
+        </Button>
+      </div>
+
+      {/* Filters */}
+      <div className="flex gap-2 flex-wrap">
+        <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos Status</SelectItem>
+            {Object.entries(TASK_STATUS_LABELS).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <Select value={priorityFilter} onValueChange={setPriorityFilter}>
+          <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Prioridade</SelectItem>
+            {Object.entries(TASK_PRIORITY_LABELS).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        {areas.length > 0 && (
+          <Select value={areaFilter} onValueChange={v => { setAreaFilter(v); setModuleFilter("all"); setCultureFilter("all"); }}>
             <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Todos Status</SelectItem>
-              {Object.entries(TASK_STATUS_LABELS).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
+              <SelectItem value="all">Todas Áreas</SelectItem>
+              {areas.map(a => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
             </SelectContent>
           </Select>
-          <Select value={priorityFilter} onValueChange={setPriorityFilter}>
-            <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
+        )}
+        {filterArea && filterArea.modules.length > 0 && (
+          <Select value={moduleFilter} onValueChange={v => { setModuleFilter(v); setCultureFilter("all"); }}>
+            <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Prioridade</SelectItem>
-              {Object.entries(TASK_PRIORITY_LABELS).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
+              <SelectItem value="all">Todos Módulos</SelectItem>
+              {filterArea.modules.map(m => <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>)}
             </SelectContent>
           </Select>
-          <Button className="gap-2" onClick={() => setDialog({})}>
-            <Plus className="h-4 w-4" /> Nova Tarefa
-          </Button>
-        </div>
+        )}
+        {filterModule && filterModule.cultures.length > 0 && (
+          <Select value={cultureFilter} onValueChange={setCultureFilter}>
+            <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas Culturas</SelectItem>
+              {filterModule.cultures.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        )}
       </div>
 
       {filtered.length === 0 ? (

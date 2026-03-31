@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useApp } from "@/contexts/AppContext";
 import {
   getAreaTotalCost,
@@ -10,11 +10,13 @@ import {
   getModuleTotalCost,
   getModuleRevenue,
   getCultureAnnualRevenue,
+  UNIT_LABELS,
 } from "@/types/agroforest";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, LineChart, Line, PieChart, Pie, Cell } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, PieChart, Pie, Cell } from "recharts";
 import { TreePine, DollarSign, TrendingUp, Clock, MapPin, AlertTriangle, TrendingDown, Wallet } from "lucide-react";
 import { motion } from "framer-motion";
 
@@ -32,7 +34,7 @@ const COLORS = [
 ];
 
 export default function Dashboard() {
-  const { areas, tasks, finances } = useApp();
+  const { areas, tasks, finances, harvests, updateTask } = useApp();
   const [horizon, setHorizon] = useState(5);
 
   const activeAreas = areas.filter(a => a.active);
@@ -42,7 +44,7 @@ export default function Dashboard() {
   const totalRevenue = activeAreas.reduce((s, a) => s + getAreaTotalRevenue(a), 0);
   const totalProfit = activeAreas.reduce((s, a) => s + getAreaTotalProfit(a), 0);
 
-  // Finance totals
+  // Finance totals (real)
   const finReceitas = finances.filter(f => f.type === "receita").reduce((s, f) => s + f.value, 0);
   const finDespesas = finances.filter(f => f.type === "despesa").reduce((s, f) => s + f.value, 0);
   const finSaldo = finReceitas - finDespesas;
@@ -61,16 +63,6 @@ export default function Dashboard() {
     return { label: `Ano ${y + 1}`, receita: total };
   });
 
-  // Cumulative profit timeline (revenue - cost spread over year 1)
-  const cumulativeData = Array.from({ length: horizon }, (_, y) => {
-    let cumRev = 0;
-    for (let yy = 0; yy <= y; yy++) {
-      for (let m = 0; m < 12; m++) cumRev += aggregated[yy * 12 + m] || 0;
-    }
-    const cumProfit = cumRev - totalCost;
-    return { label: `Ano ${y + 1}`, lucro: cumProfit };
-  });
-
   // Cost per module breakdown
   const costPerModule = activeAreas.flatMap(a =>
     a.modules.filter(m => m.active).map(m => ({
@@ -80,7 +72,7 @@ export default function Dashboard() {
     }))
   );
 
-  // Revenue per culture (top cultures)
+  // Revenue per culture (predicted)
   const cultureRevenues: { name: string; receita: number }[] = [];
   activeAreas.forEach(a => {
     a.modules.filter(m => m.active).forEach(m => {
@@ -94,7 +86,22 @@ export default function Dashboard() {
   });
   cultureRevenues.sort((a, b) => b.receita - a.receita);
 
+  // Real production by culture (from harvests)
+  const harvestByCulture = useMemo(() => {
+    const map: Record<string, { name: string; total: number; unit: string }> = {};
+    harvests.forEach(h => {
+      const area = areas.find(a => a.id === h.areaId);
+      const mod = area?.modules.find(m => m.id === h.moduleId);
+      const culture = mod?.cultures.find(c => c.id === h.cultureId);
+      const name = culture?.name || "?";
+      if (!map[h.cultureId]) map[h.cultureId] = { name, total: 0, unit: h.unit };
+      map[h.cultureId].total += h.quantity;
+    });
+    return Object.values(map).sort((a, b) => b.total - a.total);
+  }, [harvests, areas]);
+
   const pendingTasks = tasks.filter((t) => t.status === "pendente" || t.status === "atrasado");
+  const toggleTask = (t: typeof tasks[0]) => updateTask({ ...t, status: t.status === "concluido" ? "pendente" : "concluido" });
 
   const returnEstimates = activeAreas.map(a => getEstimatedReturnMonths(a)).filter(v => v !== null);
   const bestReturn = returnEstimates.length > 0 ? Math.max(...(returnEstimates as number[])) : null;
@@ -104,8 +111,8 @@ export default function Dashboard() {
     { label: "Módulos Ativos", value: totalModules, icon: TreePine, color: "text-primary" },
     { label: "Hectares", value: totalHa.toFixed(2), icon: MapPin, color: "text-primary" },
     { label: "Custo Total", value: fmt(totalCost), icon: DollarSign, color: "text-destructive" },
-    { label: "Receita Anual", value: fmt(totalRevenue), icon: TrendingUp, color: "text-success" },
-    { label: "Lucro Anual", value: fmt(totalProfit), icon: TrendingUp, color: totalProfit >= 0 ? "text-success" : "text-destructive" },
+    { label: "Receita Prevista Anual", value: fmt(totalRevenue), icon: TrendingUp, color: "text-success" },
+    { label: "Lucro Previsto Anual", value: fmt(totalProfit), icon: TrendingUp, color: totalProfit >= 0 ? "text-success" : "text-destructive" },
   ];
 
   return (
@@ -149,42 +156,84 @@ export default function Dashboard() {
         ))}
       </div>
 
-      {/* Finance summary */}
-      {finances.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="metric-card">
-            <div className="flex items-center gap-2 mb-2">
-              <Wallet className="h-4 w-4 text-primary" />
-              <span className="text-xs text-muted-foreground">Finanças Gerais - Receitas</span>
-            </div>
-            <p className="text-lg font-semibold font-display text-success">{fmt(finReceitas)}</p>
+      {/* Finance summary — Real */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="metric-card">
+          <div className="flex items-center gap-2 mb-2">
+            <Wallet className="h-4 w-4 text-primary" />
+            <span className="text-xs text-muted-foreground">Receita Real (Finanças)</span>
           </div>
-          <div className="metric-card">
-            <div className="flex items-center gap-2 mb-2">
-              <TrendingDown className="h-4 w-4 text-destructive" />
-              <span className="text-xs text-muted-foreground">Finanças Gerais - Despesas</span>
-            </div>
-            <p className="text-lg font-semibold font-display text-destructive">{fmt(finDespesas)}</p>
+          <p className="text-lg font-semibold font-display text-success">{fmt(finReceitas)}</p>
+        </div>
+        <div className="metric-card">
+          <div className="flex items-center gap-2 mb-2">
+            <TrendingDown className="h-4 w-4 text-destructive" />
+            <span className="text-xs text-muted-foreground">Despesas Reais (Finanças)</span>
           </div>
-          <div className="metric-card">
-            <div className="flex items-center gap-2 mb-2">
-              <DollarSign className={`h-4 w-4 ${finSaldo >= 0 ? 'text-success' : 'text-destructive'}`} />
-              <span className="text-xs text-muted-foreground">Saldo Consolidado</span>
-            </div>
-            <p className={`text-lg font-semibold font-display ${(totalProfit + finSaldo) >= 0 ? 'text-success' : 'text-destructive'}`}>
-              {fmt(totalProfit + finSaldo)}
+          <p className="text-lg font-semibold font-display text-destructive">{fmt(finDespesas)}</p>
+        </div>
+        <div className="metric-card">
+          <div className="flex items-center gap-2 mb-2">
+            <DollarSign className={`h-4 w-4 ${(totalProfit + finSaldo) >= 0 ? 'text-success' : 'text-destructive'}`} />
+            <span className="text-xs text-muted-foreground">Saldo Consolidado</span>
+          </div>
+          <p className={`text-lg font-semibold font-display ${(totalProfit + finSaldo) >= 0 ? 'text-success' : 'text-destructive'}`}>
+            {fmt(totalProfit + finSaldo)}
+          </p>
+        </div>
+      </div>
+
+      {/* Pending tasks — before charts */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base font-display">Tarefas Pendentes</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {pendingTasks.length === 0 ? (
+            <p className="text-muted-foreground text-sm py-8 text-center">
+              Nenhuma tarefa pendente 🎉
             </p>
+          ) : (
+            <ul className="space-y-2 max-h-[220px] overflow-auto">
+              {pendingTasks.slice(0, 8).map((t) => (
+                <li key={t.id} className="flex items-center gap-2 text-sm p-2 rounded-lg bg-muted/50">
+                  <Checkbox
+                    checked={t.status === "concluido"}
+                    onCheckedChange={() => toggleTask(t)}
+                  />
+                  <Badge className={`text-xs ${t.status === 'atrasado' ? 'bg-destructive/10 text-destructive' : 'bg-warning/10 text-warning'}`}>
+                    {t.status === 'atrasado' ? 'Atrasada' : 'Pendente'}
+                  </Badge>
+                  <span className="font-medium">{t.title}</span>
+                  <span className="text-muted-foreground ml-auto text-xs">{t.date}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Predicted vs Real comparison */}
+      {finReceitas > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="metric-card">
+            <span className="text-xs text-muted-foreground">Receita Prevista Anual (culturas)</span>
+            <p className="text-lg font-semibold font-display text-primary">{fmt(totalRevenue)}</p>
+          </div>
+          <div className="metric-card">
+            <span className="text-xs text-muted-foreground">Receita Real Total (finanças)</span>
+            <p className="text-lg font-semibold font-display text-success">{fmt(finReceitas)}</p>
           </div>
         </div>
       )}
 
       {/* Charts */}
       <div className="grid md:grid-cols-2 gap-6">
-        {/* Revenue by year */}
+        {/* Revenue by year (predicted) */}
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
-              <CardTitle className="text-base font-display">Receita Projetada por Ano</CardTitle>
+              <CardTitle className="text-base font-display">Receita Prevista por Ano</CardTitle>
               <Select value={String(horizon)} onValueChange={v => setHorizon(Number(v))}>
                 <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -202,27 +251,33 @@ export default function Dashboard() {
                 <XAxis dataKey="label" tick={{ fontSize: 12 }} />
                 <YAxis tick={{ fontSize: 12 }} />
                 <Tooltip formatter={(v: number) => fmt(v)} contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8 }} />
-                <Bar dataKey="receita" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="receita" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} name="Receita Prevista" />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
 
-        {/* Cumulative profit */}
+        {/* Real production by culture (from harvests) */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-base font-display">Evolução do Lucro Acumulado</CardTitle>
+            <CardTitle className="text-base font-display">Produção Real por Cultura</CardTitle>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={250}>
-              <LineChart data={cumulativeData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis dataKey="label" tick={{ fontSize: 12 }} />
-                <YAxis tick={{ fontSize: 12 }} />
-                <Tooltip formatter={(v: number) => fmt(v)} contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8 }} />
-                <Line type="monotone" dataKey="lucro" stroke="hsl(var(--success))" strokeWidth={2} dot={{ fill: "hsl(var(--success))" }} />
-              </LineChart>
-            </ResponsiveContainer>
+            {harvestByCulture.length === 0 ? (
+              <p className="text-muted-foreground text-sm py-8 text-center">
+                Registre colheitas para ver a produção real.
+              </p>
+            ) : (
+              <ResponsiveContainer width="100%" height={250}>
+                <BarChart data={harvestByCulture}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                  <XAxis dataKey="name" tick={{ fontSize: 12 }} />
+                  <YAxis tick={{ fontSize: 12 }} />
+                  <Tooltip formatter={(v: number, _: any, entry: any) => `${v.toFixed(2)} ${UNIT_LABELS[entry.payload.unit] || entry.payload.unit}`} contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8 }} />
+                  <Bar dataKey="total" fill="hsl(var(--success))" radius={[4, 4, 0, 0]} name="Produção Real" />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
           </CardContent>
         </Card>
 
@@ -230,7 +285,7 @@ export default function Dashboard() {
         {costPerModule.length > 0 && (
           <Card>
             <CardHeader>
-              <CardTitle className="text-base font-display">Custo vs Receita por Módulo</CardTitle>
+              <CardTitle className="text-base font-display">Custo vs Receita Prevista por Módulo</CardTitle>
             </CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={250}>
@@ -240,18 +295,18 @@ export default function Dashboard() {
                   <YAxis dataKey="name" type="category" tick={{ fontSize: 11 }} width={120} />
                   <Tooltip formatter={(v: number) => fmt(v)} contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8 }} />
                   <Bar dataKey="custo" fill="hsl(var(--destructive))" radius={[0, 4, 4, 0]} name="Custo" />
-                  <Bar dataKey="receita" fill="hsl(var(--success))" radius={[0, 4, 4, 0]} name="Receita" />
+                  <Bar dataKey="receita" fill="hsl(var(--success))" radius={[0, 4, 4, 0]} name="Receita Prevista" />
                 </BarChart>
               </ResponsiveContainer>
             </CardContent>
           </Card>
         )}
 
-        {/* Revenue by culture */}
+        {/* Revenue by culture (predicted) */}
         {cultureRevenues.length > 0 && (
           <Card>
             <CardHeader>
-              <CardTitle className="text-base font-display">Receita por Cultura</CardTitle>
+              <CardTitle className="text-base font-display">Receita Prevista por Cultura</CardTitle>
             </CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={250}>
@@ -265,32 +320,6 @@ export default function Dashboard() {
             </CardContent>
           </Card>
         )}
-
-        {/* Pending tasks */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base font-display">Tarefas Pendentes</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {pendingTasks.length === 0 ? (
-              <p className="text-muted-foreground text-sm py-8 text-center">
-                Nenhuma tarefa pendente 🎉
-              </p>
-            ) : (
-              <ul className="space-y-2 max-h-[220px] overflow-auto">
-                {pendingTasks.slice(0, 8).map((t) => (
-                  <li key={t.id} className="flex items-center gap-2 text-sm p-2 rounded-lg bg-muted/50">
-                    <Badge className={`text-xs ${t.status === 'atrasado' ? 'bg-destructive/10 text-destructive' : 'bg-warning/10 text-warning'}`}>
-                      {t.status === 'atrasado' ? 'Atrasada' : 'Pendente'}
-                    </Badge>
-                    <span className="font-medium">{t.title}</span>
-                    <span className="text-muted-foreground ml-auto text-xs">{t.date}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </CardContent>
-        </Card>
       </div>
     </div>
   );

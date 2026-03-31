@@ -69,6 +69,19 @@ export interface FinanceEntry {
   description: string;
   type: 'receita' | 'despesa';
   value: number;
+  areaId?: string;
+  moduleId?: string;
+}
+
+export interface Harvest {
+  id: string;
+  date: string;
+  areaId: string;
+  moduleId: string;
+  cultureId: string;
+  quantity: number;
+  unit: string;
+  notes: string;
 }
 
 export interface Area {
@@ -79,6 +92,8 @@ export interface Area {
   moduleSize: number; // m², default 700
   modules: Module[];
   notes: string;
+  imageUrl?: string;
+  irrigated?: boolean;
 }
 
 export interface Task {
@@ -282,7 +297,21 @@ export function migrateArea(area: any): Area {
     ...area,
     active: area.active ?? true,
     modules: (area.modules || []).map(migrateModule),
+    imageUrl: area.imageUrl || undefined,
+    irrigated: area.irrigated ?? false,
   };
+}
+
+export function migrateFinance(f: any): FinanceEntry {
+  return {
+    ...f,
+    areaId: f.areaId || undefined,
+    moduleId: f.moduleId || undefined,
+  };
+}
+
+export function migrateHarvest(h: any): Harvest {
+  return { ...h };
 }
 
 export function migrateModule(m: any): Module {

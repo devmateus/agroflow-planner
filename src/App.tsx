@@ -10,6 +10,7 @@ import AreasPage from "@/pages/AreasPage";
 import ModulesPage from "@/pages/ModulesPage";
 import TasksPage from "@/pages/TasksPage";
 import FinancesPage from "@/pages/FinancesPage";
+import HarvestsPage from "@/pages/HarvestsPage";
 import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
@@ -28,6 +29,7 @@ const App = () => (
               <Route path="/modulos" element={<ModulesPage />} />
               <Route path="/financas" element={<FinancesPage />} />
               <Route path="/tarefas" element={<TasksPage />} />
+              <Route path="/colheitas" element={<HarvestsPage />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </Layout>
