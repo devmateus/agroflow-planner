@@ -69,6 +69,19 @@ export interface FinanceEntry {
   description: string;
   type: 'receita' | 'despesa';
   value: number;
+  areaId?: string;
+  moduleId?: string;
+}
+
+export interface Harvest {
+  id: string;
+  date: string;
+  areaId: string;
+  moduleId: string;
+  cultureId: string;
+  quantity: number;
+  unit: string;
+  notes: string;
 }
 
 export interface Area {
