@@ -92,6 +92,8 @@ export interface Area {
   moduleSize: number; // m², default 700
   modules: Module[];
   notes: string;
+  imageUrl?: string;
+  irrigated?: boolean;
 }
 
 export interface Task {
