@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useApp } from "@/contexts/AppContext";
-import { Area, Module, getAreaHectares, getAreaTotalCost, getAreaTotalRevenue, getAreaTotalProfit } from "@/types/agroforest";
+import { Area, getAreaHectares, getAreaTotalCost, getAreaTotalRevenue, getAreaTotalProfit } from "@/types/agroforest";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,8 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
-import { Plus, Trash2, Edit2, MessageSquare, Eye, EyeOff } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Plus, Trash2, Edit2, MessageSquare, Eye, EyeOff, Droplets, Image } from "lucide-react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 
@@ -26,6 +26,8 @@ function AreaForm({ initial, onSave, onCancel }: {
   const [moduleCount, setModuleCount] = useState(initial?.moduleCount || 1);
   const [moduleSize, setModuleSize] = useState(initial?.moduleSize || 700);
   const [notes, setNotes] = useState(initial?.notes || "");
+  const [imageUrl, setImageUrl] = useState(initial?.imageUrl || "");
+  const [irrigated, setIrrigated] = useState(initial?.irrigated ?? false);
 
   const handleSubmit = () => {
     const area: Area = {
@@ -43,6 +45,8 @@ function AreaForm({ initial, onSave, onCancel }: {
         additionalCosts: [],
       })),
       notes,
+      imageUrl: imageUrl || undefined,
+      irrigated,
     };
     if (!initial && area.modules.length < moduleCount) {
       for (let i = area.modules.length; i < moduleCount; i++) {
@@ -60,7 +64,7 @@ function AreaForm({ initial, onSave, onCancel }: {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 max-h-[70vh] overflow-auto pr-2">
       <div>
         <Label>Nome da Área</Label>
         <Input value={name} onChange={e => setName(e.target.value)} placeholder="Ex: Área Norte" />
@@ -78,6 +82,19 @@ function AreaForm({ initial, onSave, onCancel }: {
       <p className="text-sm text-muted-foreground">
         Área total: {((moduleCount * moduleSize) / 10000).toFixed(2)} ha ({(moduleCount * moduleSize).toLocaleString()} m²)
       </p>
+      <div className="flex items-center gap-2">
+        <Checkbox checked={irrigated} onCheckedChange={v => setIrrigated(!!v)} id="irrigated" />
+        <Label htmlFor="irrigated" className="flex items-center gap-1 cursor-pointer">
+          <Droplets className="h-4 w-4 text-blue-500" /> Área irrigada
+        </Label>
+      </div>
+      <div>
+        <Label>URL da Imagem (opcional)</Label>
+        <Input value={imageUrl} onChange={e => setImageUrl(e.target.value)} placeholder="https://... (mapa satélite, foto, etc.)" />
+        {imageUrl && (
+          <img src={imageUrl} alt="Preview" className="mt-2 rounded-lg max-h-32 object-cover w-full" onError={e => (e.currentTarget.style.display = 'none')} />
+        )}
+      </div>
       <div>
         <Label>Observações</Label>
         <Textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Observações opcionais..." />
@@ -165,11 +182,22 @@ export default function AreasPage() {
               transition={{ delay: i * 0.05 }}
             >
               <Card className={`cursor-pointer hover:shadow-md transition-shadow ${!area.active ? 'opacity-50' : ''}`} onClick={() => navigate(`/modulos?area=${area.id}`)}>
+                {area.imageUrl && (
+                  <div className="h-32 overflow-hidden rounded-t-xl">
+                    <img src={area.imageUrl} alt={area.name} className="w-full h-full object-cover" onError={e => (e.currentTarget.style.display = 'none')} />
+                  </div>
+                )}
                 <CardHeader className="pb-2">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <CardTitle className="text-base font-display">{area.name}</CardTitle>
                       {!area.active && <Badge variant="secondary" className="text-xs">Inativa</Badge>}
+                      {area.irrigated && (
+                        <Tooltip>
+                          <TooltipTrigger><Droplets className="h-4 w-4 text-blue-500" /></TooltipTrigger>
+                          <TooltipContent>Área irrigada</TooltipContent>
+                        </Tooltip>
+                      )}
                     </div>
                     <div className="flex gap-1" onClick={e => e.stopPropagation()}>
                       <Tooltip>
@@ -204,10 +232,10 @@ export default function AreasPage() {
                     <div><span className="text-muted-foreground">Módulos:</span> {area.modules.length}</div>
                     <div><span className="text-muted-foreground">Hectares:</span> {getAreaHectares(area).toFixed(2)}</div>
                     <div><span className="text-muted-foreground">Custo:</span> {fmt(getAreaTotalCost(area))}</div>
-                    <div><span className="text-muted-foreground">Receita:</span> {fmt(getAreaTotalRevenue(area))}</div>
+                    <div><span className="text-muted-foreground">Receita Prev.:</span> {fmt(getAreaTotalRevenue(area))}</div>
                   </div>
                   <div className={`text-sm font-medium ${getAreaTotalProfit(area) >= 0 ? 'text-success' : 'text-destructive'}`}>
-                    Lucro: {fmt(getAreaTotalProfit(area))}
+                    Lucro Previsto: {fmt(getAreaTotalProfit(area))}
                   </div>
                 </CardContent>
               </Card>

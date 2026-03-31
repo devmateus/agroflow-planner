@@ -18,6 +18,7 @@ const items = [
   { title: "Painel", url: "/", icon: LayoutDashboard },
   { title: "Áreas", url: "/areas", icon: Map },
   { title: "Módulos", url: "/modulos", icon: TreePine },
+  { title: "Colheitas", url: "/colheitas", icon: Sprout },
   { title: "Finanças", url: "/financas", icon: Wallet },
   { title: "Tarefas", url: "/tarefas", icon: ListTodo },
 ];
