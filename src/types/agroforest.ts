@@ -297,7 +297,21 @@ export function migrateArea(area: any): Area {
     ...area,
     active: area.active ?? true,
     modules: (area.modules || []).map(migrateModule),
+    imageUrl: area.imageUrl || undefined,
+    irrigated: area.irrigated ?? false,
   };
+}
+
+export function migrateFinance(f: any): FinanceEntry {
+  return {
+    ...f,
+    areaId: f.areaId || undefined,
+    moduleId: f.moduleId || undefined,
+  };
+}
+
+export function migrateHarvest(h: any): Harvest {
+  return { ...h };
 }
 
 export function migrateModule(m: any): Module {
