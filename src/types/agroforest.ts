@@ -316,9 +316,6 @@ export function migrateHarvest(h: any): Harvest {
   return { ...h, notes: h.notes || '' };
 }
 
-export function migrateHarvest(h: any): Harvest {
-  return { ...h };
-}
 
 export function migrateModule(m: any): Module {
   return {
