@@ -1,17 +1,22 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { useApp } from "@/contexts/AppContext";
 import { FinanceEntry } from "@/types/agroforest";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Trash2, Edit2, TrendingUp, TrendingDown, DollarSign, Search } from "lucide-react";
+import { Plus, Trash2, Edit2, TrendingUp, TrendingDown, DollarSign, Search, Copy, ArrowUpDown } from "lucide-react";
 import { motion } from "framer-motion";
+import { useKeyboardShortcut } from "@/hooks/useKeyboardShortcut";
+import { DeleteConfirmDialog } from "@/components/DeleteConfirmDialog";
+import { ActiveFilters } from "@/components/ActiveFilters";
 
 const fmt = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+const PAGE_SIZE = 50;
 
 function FinanceForm({ initial, areas, onSave, onCancel }: {
   initial?: FinanceEntry;
@@ -25,12 +30,20 @@ function FinanceForm({ initial, areas, onSave, onCancel }: {
     description: "",
     type: "despesa",
     value: 0,
+    notes: "",
   });
   const set = (k: string, v: any) => setData(prev => ({ ...prev, [k]: v }));
   const selectedArea = areas.find(a => a.id === data.areaId);
 
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && data.description.trim() && data.value > 0) {
+      e.preventDefault();
+      onSave(data);
+    }
+  };
+
   return (
-    <div className="space-y-3">
+    <div className="space-y-3" onKeyDown={handleKeyDown}>
       <div className="grid grid-cols-2 gap-3">
         <div><Label>Data</Label><Input type="date" value={data.date} onChange={e => set("date", e.target.value)} /></div>
         <div><Label>Tipo</Label>
@@ -46,7 +59,11 @@ function FinanceForm({ initial, areas, onSave, onCancel }: {
         <div><Label>Valor (R$)</Label><Input type="number" step="0.01" value={data.value} onChange={e => set("value", Number(e.target.value))} /></div>
       </div>
 
-      {/* Linking */}
+      <div>
+        <Label>Observação</Label>
+        <Textarea value={data.notes || ""} onChange={e => set("notes", e.target.value)} placeholder="Observações opcionais..." className="min-h-[60px]" />
+      </div>
+
       {areas.length > 0 && (
         <div className="space-y-2">
           <div><Label>Área (opcional)</Label>
@@ -83,10 +100,16 @@ function FinanceForm({ initial, areas, onSave, onCancel }: {
 export default function FinancesPage() {
   const { finances, addFinance, updateFinance, deleteFinance, areas } = useApp();
   const [dialog, setDialog] = useState<{ data?: FinanceEntry } | null>(null);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [periodFilter, setPeriodFilter] = useState<string>("all");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+  const [sortBy, setSortBy] = useState<"date" | "value">("date");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+
+  useKeyboardShortcut('q', useCallback(() => setDialog({}), []));
 
   const setQuickFilter = (type: string) => {
     const now = new Date();
@@ -113,7 +136,7 @@ export default function FinancesPage() {
     let list = [...finances];
     if (search.trim()) {
       const q = search.toLowerCase();
-      list = list.filter(f => f.description.toLowerCase().includes(q));
+      list = list.filter(f => f.description.toLowerCase().includes(q) || (f.notes || "").toLowerCase().includes(q));
     }
     const now = new Date();
     const currentYear = now.getFullYear();
@@ -125,9 +148,14 @@ export default function FinancesPage() {
     } else if (periodFilter === "custom" && startDate && endDate) {
       list = list.filter(f => f.date >= startDate && f.date <= endDate);
     }
-    return list.sort((a, b) => b.date.localeCompare(a.date));
-  }, [finances, search, periodFilter, startDate, endDate]);
+    list.sort((a, b) => {
+      const cmp = sortBy === "value" ? a.value - b.value : a.date.localeCompare(b.date);
+      return sortDir === "desc" ? -cmp : cmp;
+    });
+    return list;
+  }, [finances, search, periodFilter, startDate, endDate, sortBy, sortDir]);
 
+  const visible = filtered.slice(0, visibleCount);
   const totalReceitas = filtered.filter(f => f.type === "receita").reduce((s, f) => s + f.value, 0);
   const totalDespesas = filtered.filter(f => f.type === "despesa").reduce((s, f) => s + f.value, 0);
   const saldo = totalReceitas - totalDespesas;
@@ -143,12 +171,25 @@ export default function FinancesPage() {
     return parts.length > 0 ? parts.join(" → ") : null;
   };
 
+  const activeFiltersList = useMemo(() => {
+    const f: { label: string; onClear: () => void }[] = [];
+    if (periodFilter !== "all") f.push({ label: periodFilter === "month" ? "Mês atual" : periodFilter === "year" ? "Ano atual" : `${startDate} a ${endDate}`, onClear: () => setQuickFilter("all") });
+    if (search) f.push({ label: `Busca: "${search}"`, onClear: () => setSearch("") });
+    return f;
+  }, [periodFilter, startDate, endDate, search]);
+
+  const duplicate = (e: FinanceEntry) => addFinance({ ...e, id: crypto.randomUUID() });
+  const toggleSort = (field: "date" | "value") => {
+    if (sortBy === field) setSortDir(d => d === "asc" ? "desc" : "asc");
+    else { setSortBy(field); setSortDir("desc"); }
+  };
+
   return (
     <div className="page-container">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <h2 className="section-title">Finanças Gerais</h2>
         <Button className="gap-2" onClick={() => setDialog({})}>
-          <Plus className="h-4 w-4" /> Novo Lançamento
+          <Plus className="h-4 w-4" /> Novo Lançamento <kbd className="ml-1 text-xs opacity-60 bg-muted px-1 rounded">Q</kbd>
         </Button>
       </div>
 
@@ -157,9 +198,9 @@ export default function FinancesPage() {
         <div className="flex gap-2 flex-wrap">
           <div className="relative flex-1 min-w-[200px]">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input className="pl-9" placeholder="Buscar por descrição..." value={search} onChange={e => setSearch(e.target.value)} />
+            <Input className="pl-9" placeholder="Buscar por descrição ou observação..." value={search} onChange={e => setSearch(e.target.value)} />
           </div>
-          <Select value={periodFilter === "custom" ? "custom" : periodFilter} onValueChange={v => { if (v !== "custom") setQuickFilter(v); }}>
+          <Select value={periodFilter === "custom" ? "custom" : periodFilter} onValueChange={v => { if (v !== "custom") setQuickFilter(v); else setPeriodFilter("custom"); }}>
             <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Todo período</SelectItem>
@@ -176,12 +217,14 @@ export default function FinancesPage() {
           <Button variant="outline" size="sm" onClick={() => setQuickFilter("year")}>Ano atual</Button>
           {periodFilter === "custom" && (
             <>
-              <Input type="date" className="w-40" value={startDate} onChange={e => setStartDate(e.target.value)} />
-              <Input type="date" className="w-40" value={endDate} onChange={e => setEndDate(e.target.value)} />
+              <Input type="date" className="w-40 h-9" value={startDate} onChange={e => setStartDate(e.target.value)} />
+              <Input type="date" className="w-40 h-9" value={endDate} onChange={e => setEndDate(e.target.value)} />
             </>
           )}
         </div>
       </div>
+
+      <ActiveFilters filters={activeFiltersList} />
 
       {/* Summary cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -214,8 +257,18 @@ export default function FinancesPage() {
         </motion.div>
       </div>
 
+      {/* Sort */}
+      <div className="flex gap-2">
+        <Button variant="ghost" size="sm" className="gap-1" onClick={() => toggleSort("date")}>
+          <ArrowUpDown className="h-3 w-3" /> Data {sortBy === "date" && (sortDir === "desc" ? "↓" : "↑")}
+        </Button>
+        <Button variant="ghost" size="sm" className="gap-1" onClick={() => toggleSort("value")}>
+          <ArrowUpDown className="h-3 w-3" /> Valor {sortBy === "value" && (sortDir === "desc" ? "↓" : "↑")}
+        </Button>
+      </div>
+
       {/* Entries list */}
-      {filtered.length === 0 ? (
+      {visible.length === 0 ? (
         <Card className="border-dashed">
           <CardContent className="p-12 text-center text-muted-foreground">
             <p className="text-lg mb-2">Nenhum lançamento</p>
@@ -229,7 +282,7 @@ export default function FinancesPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
-              {filtered.map(entry => {
+              {visible.map(entry => {
                 const linked = getLinkedLabel(entry);
                 return (
                   <motion.div key={entry.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }}
@@ -242,6 +295,7 @@ export default function FinancesPage() {
                       </Badge>
                       <div className="min-w-0">
                         <span className="font-medium">{entry.description}</span>
+                        {entry.notes && <p className="text-xs text-muted-foreground truncate">📝 {entry.notes}</p>}
                         {linked && <p className="text-xs text-primary/70">{linked}</p>}
                       </div>
                     </div>
@@ -249,10 +303,13 @@ export default function FinancesPage() {
                       <span className={`font-medium ${entry.type === "receita" ? "text-success" : "text-destructive"}`}>
                         {entry.type === "receita" ? "+" : "-"}{fmt(entry.value)}
                       </span>
+                      <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => duplicate(entry)} title="Duplicar">
+                        <Copy className="h-3 w-3" />
+                      </Button>
                       <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setDialog({ data: entry })}>
                         <Edit2 className="h-3 w-3" />
                       </Button>
-                      <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => deleteFinance(entry.id)}>
+                      <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => setDeleteId(entry.id)}>
                         <Trash2 className="h-3 w-3" />
                       </Button>
                     </div>
@@ -260,6 +317,13 @@ export default function FinancesPage() {
                 );
               })}
             </div>
+            {visibleCount < filtered.length && (
+              <div className="text-center pt-4">
+                <Button variant="outline" onClick={() => setVisibleCount(v => v + PAGE_SIZE)}>
+                  Carregar mais {Math.min(PAGE_SIZE, filtered.length - visibleCount)} registros
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
@@ -281,6 +345,12 @@ export default function FinancesPage() {
           />
         </DialogContent>
       </Dialog>
+
+      <DeleteConfirmDialog
+        open={!!deleteId}
+        onCancel={() => setDeleteId(null)}
+        onConfirm={() => { if (deleteId) deleteFinance(deleteId); setDeleteId(null); }}
+      />
     </div>
   );
 }

@@ -69,6 +69,7 @@ export interface FinanceEntry {
   description: string;
   type: 'receita' | 'despesa';
   value: number;
+  notes?: string;
   areaId?: string;
   moduleId?: string;
 }
@@ -305,14 +306,16 @@ export function migrateArea(area: any): Area {
 export function migrateFinance(f: any): FinanceEntry {
   return {
     ...f,
+    notes: f.notes || '',
     areaId: f.areaId || undefined,
     moduleId: f.moduleId || undefined,
   };
 }
 
 export function migrateHarvest(h: any): Harvest {
-  return { ...h };
+  return { ...h, notes: h.notes || '' };
 }
+
 
 export function migrateModule(m: any): Module {
   return {
