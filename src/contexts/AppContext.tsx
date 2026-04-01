@@ -103,8 +103,46 @@ export function AppProvider({ children }: { children: ReactNode }) {
   };
 
   const addTask = (task: Task) => setTasks(prev => [...prev, task]);
-  const updateTask = (task: Task) => setTasks(prev => prev.map(t => t.id === task.id ? task : t));
+  const updateTask = (task: Task) => {
+    setTasks(prev => {
+      const updated = prev.map(t => t.id === task.id ? task : t);
+      // Recurrence: if completing a recurring task, create next occurrence
+      if (task.status === 'concluido') {
+        const original = prev.find(t => t.id === task.id);
+        if (original && original.status !== 'concluido' && task.recurrence && task.recurrence !== 'nenhuma') {
+          const baseDate = new Date(task.date);
+          if (task.recurrence === 'semanal') baseDate.setDate(baseDate.getDate() + 7);
+          else if (task.recurrence === 'mensal') baseDate.setDate(baseDate.getDate() + 30);
+          else if (task.recurrence === 'anual') baseDate.setFullYear(baseDate.getFullYear() + 1);
+          const newTask: Task = {
+            ...task,
+            id: crypto.randomUUID(),
+            status: 'pendente',
+            date: baseDate.toISOString().slice(0, 10),
+          };
+          return [...updated, newTask];
+        }
+      }
+      return updated;
+    });
+  };
   const deleteTask = (id: string) => setTasks(prev => prev.filter(t => t.id !== id));
+
+  // Auto-overdue check on mount and when tasks change
+  useEffect(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    setTasks(prev => {
+      let changed = false;
+      const updated = prev.map(t => {
+        if ((t.status === 'pendente' || t.status === 'em_andamento') && t.date < today) {
+          changed = true;
+          return { ...t, status: 'atrasado' as const };
+        }
+        return t;
+      });
+      return changed ? updated : prev;
+    });
+  }, []);
 
   const addFinance = (entry: FinanceEntry) => setFinances(prev => [...prev, entry]);
   const updateFinance = (entry: FinanceEntry) => setFinances(prev => prev.map(f => f.id === entry.id ? entry : f));
