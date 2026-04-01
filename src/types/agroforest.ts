@@ -69,6 +69,7 @@ export interface FinanceEntry {
   description: string;
   type: 'receita' | 'despesa';
   value: number;
+  notes?: string;
   areaId?: string;
   moduleId?: string;
 }
